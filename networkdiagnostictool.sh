@@ -1,9 +1,3 @@
-#!/bin/bash
-
-# Description: This script provides various network diagnostic and monitoring functionalities.
-
-# Global variables (if any) go here
-
 # Check if the script is running as root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
@@ -87,6 +81,48 @@ function traffic_analysis() {
 }
 
 
+function network_path_tracing() {
+    echo "Starting network path tracing..."
+    read -p "Enter destination to trace (e.g., google.com): " dest
+    traceroute $dest
+}
+
+function dns_query_testing() {
+    echo "Starting DNS query testing..."
+    read -p "Enter the domain name to query (e.g., example.com): " domain
+    dig $domain
+}
+
+function interface_routing_info() {
+    echo "Displaying interface and routing information..."
+    echo "Network Interfaces:"
+    ip link show
+    echo "Routing Table:"
+    ip route show
+}
+
+function packet_sniffing_inspection() {
+    echo "Starting packet sniffing and inspection..."
+    read -p "Enter network interface for packet capture (e.g., eth0): " interface
+    tcpdump -i $interface -c 20  # Captures 20 packets, modify as needed
+}
+
+function basic_port_checking() {
+    echo "Starting basic port checking..."
+    read -p "Enter the host (e.g., example.com): " host
+    read -p "Enter the port (e.g., 80): " port
+    nc -zv $host $port
+}
+
+function snmp_data_collection() {
+    echo "Starting SNMP data collection..."
+    read -p "Enter SNMP agent address (e.g., localhost): " agent
+    read -p "Enter SNMP community string (e.g., public): " community
+    read -p "Enter SNMP OID to retrieve (e.g., system): " oid
+    snmpwalk -v2c -c $community $agent $oid
+}
+
+
 
 function show_menu() {
     echo "Network Diagnostic and Monitoring Tool"
@@ -115,4 +151,3 @@ while true; do
         *) echo "Invalid choice. Please try again."; continue ;;
     esac
 done
-
