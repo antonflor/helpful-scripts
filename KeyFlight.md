@@ -1,57 +1,57 @@
-# README for AutoNetDiscover.sh
+# KeyFlight - SSH Key Distributor
 
-## AutoNetDiscover.sh
+## Overview
 
-### Description
+`keyflight.sh` is a simple Bash script that automates the process of copying your SSH key to multiple hosts. This is particularly useful for setting up password-less SSH logins to a list of servers or remote machines.
 
-AutoNetDiscover.sh is a Bash script for Debian-based systems that facilitates network discovery by scanning for active hosts within a user-selected subnet and network interface. This script is ideal for network administrators and IT professionals for tasks like network monitoring and auditing. It requires root privileges to operate.
+## Prerequisites
 
-### Features
+- SSH must be installed on your local machine.
+- You should have generated an SSH key pair (`id_rsa` and `id_rsa.pub`) on your local machine.
+- SSH server must be running on the target hosts.
 
-- Interactive selection of network interfaces and subnets.
-- Automated scanning of the chosen subnet for active hosts.
-- Outputs a list of active hosts, sorted by IP addresses.
+## Installation
 
-### Requirements
+1. Clone this repository or download the `keyflight.sh` script directly.
+2. Make the script executable:
 
-- Bash shell environment.
-- `arp-scan` tool must be installed.
-- Root access is required to run the script.
+```
+chmod +x keyflight.sh
+```
 
-### Usage
+## Usage
 
-1. Ensure the `arp-scan` tool is installed on your system.
+Run the script and follow the prompt to enter the hostnames or IP addresses of the target machines:
 
-2. Run the script with root privileges:
+```
+./keyflight.sh
+```
 
-   ```
-   sudo ./autonetdiscover.sh
-   ```
+You will be asked to enter the hostnames or IP addresses, separated by space:
 
-3. Select the desired network interface and subnet from the presented lists.
+```
+Enter the hostnames or IP addresses separated by space: host1.example.com host2.example.com
+```
 
-4. The script will then scan the subnet and display the active hosts.
+The script will then loop through each host and copy your SSH public key using `ssh-copy-id`. You may be prompted to enter the user's password for each host.
 
-### Running the Script
+## Note
 
-To execute the script, follow these steps:
+- The script assumes that the username on the remote hosts is the same as the username on the local machine. If this is not the case, modify the `ssh-copy-id` command accordingly.
+- Ensure that the SSH public key (`~/.ssh/id_rsa.pub`) exists and is correctly configured on your local machine before running the script.
 
-1. Open a terminal window.
+## License
 
-2. Navigate to the directory containing `autonetdiscover.sh`.
+This project is licensed under the MIT License.
 
-3. Make the script executable (if not already) using:
+## Contributing
 
-   ```
-   chmod +x autonetdiscover.sh
-   ```
+Contributions are welcome. Please open an issue or submit a pull request with your changes.
 
-4. Run the script with `sudo`:
+## Acknowledgments
 
-   ```
-   sudo ./autonetdiscover.sh
-   ```
+This script was created to simplify the process of managing SSH keys across multiple hosts.
 
-### Important Note
-
-Network scanning can be seen as intrusive in certain environments. Always ensure you have proper authorization and are compliant with applicable policies and regulations before conducting network scans.
+```
+Feel free to adjust the contents according to your project's specific deta
+```
