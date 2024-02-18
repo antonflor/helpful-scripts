@@ -39,10 +39,14 @@ Execute the script:
 ```
 The script will ask for the sudo password if required.
 
-Notes
+## Notes
 The script needs to be run with sudo privileges to install packages and make system configurations.
+
 It automatically answers 'yes' to all prompts (-y flag with apt-get).
+
 The script includes checks after each critical step. If any step fails, the script will terminate, and an error message will be displayed.
+
 After installation, it's recommended to log out and log back in or reboot the system to ensure that group changes take effect and Docker runs smoothly.
-Disclaimer
+
+## Disclaimer
 This script is provided "as is", without warranty of any kind. Use it at your own risk.
