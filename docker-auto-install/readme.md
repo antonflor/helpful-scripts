@@ -46,12 +46,3 @@ The script includes checks after each critical step. If any step fails, the scri
 After installation, it's recommended to log out and log back in or reboot the system to ensure that group changes take effect and Docker runs smoothly.
 Disclaimer
 This script is provided "as is", without warranty of any kind. Use it at your own risk.
-
-
-
-
-### Instructions for Creating the README.md File
-
-1. Open a text editor and paste the above content into it.
-2. Save the file with the name `README.md` in the same directory as your `install_docker.sh` script.
-3. You can view this file with any Markdown viewer, or on platforms like GitHub or GitLab, which render Markdown files automatically.
