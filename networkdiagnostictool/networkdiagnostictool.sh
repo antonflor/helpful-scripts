@@ -1,7 +1,9 @@
+#!/bin/bash
+
 # Check if the script is running as root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
-  exit
+  exit 1
 fi
 
 function network_scan() {
@@ -31,24 +33,28 @@ function network_scan() {
     fi
 
     echo "Starting network scan on $selected_subnet..."
-    nmap $selected_subnet
+    nmap "$selected_subnet"
 }
 
 function performance_test() {
-    # Check if iperf is installed on the client
-    if ! command -v iperf &> /dev/null; then
-        echo "iperf is not installed. Please install it to proceed."
+    # Prefer iperf3, fall back to iperf
+    local iperf_cmd
+    if command -v iperf3 &> /dev/null; then
+        iperf_cmd="iperf3"
+    elif command -v iperf &> /dev/null; then
+        iperf_cmd="iperf"
+    else
+        echo "iperf3 (or iperf) is not installed. Please install it to proceed."
         return
     fi
 
-    echo "Ensure that iperf is running in server mode on the server."
+    echo "Ensure that $iperf_cmd is running in server mode on the server (${iperf_cmd} -s)."
     read -p "Press [Enter] once confirmed..."
 
     echo "Starting performance test..."
     read -p "Enter server IP: " server_ip
-    iperf -c $server_ip
+    "$iperf_cmd" -c "$server_ip"
 }
-
 
 function traffic_analysis() {
     echo "Starting traffic analysis..."
@@ -77,20 +83,19 @@ function traffic_analysis() {
     fi
 
     # Capture 100 packets on the selected interface
-    tcpdump -i $selected_interface -c 100
+    tcpdump -i "$selected_interface" -c 100
 }
-
 
 function network_path_tracing() {
     echo "Starting network path tracing..."
     read -p "Enter destination to trace (e.g., google.com): " dest
-    traceroute $dest
+    traceroute "$dest"
 }
 
 function dns_query_testing() {
     echo "Starting DNS query testing..."
     read -p "Enter the domain name to query (e.g., example.com): " domain
-    dig $domain
+    dig "$domain"
 }
 
 function interface_routing_info() {
@@ -104,14 +109,14 @@ function interface_routing_info() {
 function packet_sniffing_inspection() {
     echo "Starting packet sniffing and inspection..."
     read -p "Enter network interface for packet capture (e.g., eth0): " interface
-    tcpdump -i $interface -c 20  # Captures 20 packets, modify as needed
+    tcpdump -i "$interface" -c 20  # Captures 20 packets, modify as needed
 }
 
 function basic_port_checking() {
     echo "Starting basic port checking..."
     read -p "Enter the host (e.g., example.com): " host
     read -p "Enter the port (e.g., 80): " port
-    nc -zv $host $port
+    nc -zv "$host" "$port"
 }
 
 function snmp_data_collection() {
@@ -119,10 +124,8 @@ function snmp_data_collection() {
     read -p "Enter SNMP agent address (e.g., localhost): " agent
     read -p "Enter SNMP community string (e.g., public): " community
     read -p "Enter SNMP OID to retrieve (e.g., system): " oid
-    snmpwalk -v2c -c $community $agent $oid
+    snmpwalk -v2c -c "$community" "$agent" "$oid"
 }
-
-
 
 function show_menu() {
     echo "Network Diagnostic and Monitoring Tool"
@@ -146,7 +149,12 @@ while true; do
         1) network_scan ;;
         2) performance_test ;;
         3) traffic_analysis ;;
-        # Add cases for other options here
+        4) network_path_tracing ;;
+        5) dns_query_testing ;;
+        6) interface_routing_info ;;
+        7) packet_sniffing_inspection ;;
+        8) basic_port_checking ;;
+        9) snmp_data_collection ;;
         0) echo "Exiting..."; exit 0 ;;
         *) echo "Invalid choice. Please try again."; continue ;;
     esac

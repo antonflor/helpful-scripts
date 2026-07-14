@@ -5,7 +5,7 @@ This Bash script provides a suite of network diagnostic and monitoring tools to 
 ## Features
 
 - **Network Scanning and Discovery:** Utilizes `nmap` for network scanning.
-- **Performance Testing:** Employs `iperf` for testing network bandwidth.
+- **Performance Testing:** Employs `iperf3` (or `iperf`) for testing network bandwidth.
 - **Traffic Analysis:** Leverages `tcpdump` for monitoring network traffic.
 - **Network Path Tracing:** Uses `traceroute` to trace packet paths.
 - **DNS Query Testing:** Incorporates `dnsutils` for DNS testing.
@@ -19,7 +19,7 @@ This Bash script provides a suite of network diagnostic and monitoring tools to 
 Before running the script, ensure the following tools are installed:
 
 - nmap
-- iperf
+- iperf3 (or iperf)
 - tcpdump
 - traceroute
 - dnsutils
@@ -35,7 +35,7 @@ Before running the script, ensure the following tools are installed:
 2. Make the script executable:
 
 ```
-chmod +x NetworkDiagnosticTool.sh
+chmod +x networkdiagnostictool.sh
 ```
 
 ## Usage
@@ -43,7 +43,7 @@ chmod +x NetworkDiagnosticTool.sh
 Run the script with root privileges:
 
 ```
-sudo ./NetworkDiagnosticTool.sh
+sudo ./networkdiagnostictool.sh
 ```
 
 Follow the on-screen prompts to select the desired network diagnostic or monitoring function.

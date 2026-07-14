@@ -27,7 +27,9 @@ This script allows users to execute a set of commands on multiple Debian hosts v
 #### Note
 
 - Ensure that the command and host files are correctly formatted and the paths provided during the prompt are accurate.
+- Blank lines and lines starting with `#` in the host file are skipped.
 - This script assumes that SSH key-based authentication is configured for all the target hosts.
+- New hosts are trusted automatically on first connection (`StrictHostKeyChecking=accept-new`), but connections are refused if a known host's key has changed.
 
 ------
 

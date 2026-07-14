@@ -1,8 +1,8 @@
 """
 Script Name: Network ARP Scanner
 Author: Antonio Flores
-Date: 2024-02-05
-Version: 1.2
+Date: 2026-07-14
+Version: 1.3
 
 Description:
     This script performs an ARP scan on the local network to identify active devices.
@@ -23,7 +23,7 @@ def scan(ip):
     arp_request = scapy.ARP(pdst=ip)
     broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")
     arp_request_broadcast = broadcast/arp_request
-    answered_list = scapy.srp(arp_request_broadcast, timeout=15, verbose=False)[0]  # Increased timeout
+    answered_list = scapy.srp(arp_request_broadcast, timeout=3, verbose=False)[0]
 
     clients_list = []
     for element in answered_list:
@@ -48,16 +48,28 @@ def get_networks():
     networks = {}
     for interface in ni.interfaces():
         addrs = ni.ifaddresses(interface)
-        if ni.AF_INET in addrs:
-            ip_addr = addrs[ni.AF_INET][0]['addr']
-            # Skip the loopback interface
-            if ip_addr.startswith("127."):
-                continue
-            networks[interface] = ip_addr + '/24'
+        if ni.AF_INET not in addrs:
+            continue
+        addr_info = addrs[ni.AF_INET][0]
+        ip_addr = addr_info['addr']
+        # Skip the loopback interface
+        if ip_addr.startswith("127."):
+            continue
+        # Build the real network from the interface netmask instead of assuming /24
+        netmask = addr_info.get('netmask', '255.255.255.0')
+        network = ipaddress.ip_network(f"{ip_addr}/{netmask}", strict=False)
+        # Skip networks too large to ARP-scan in a reasonable time
+        if network.prefixlen < 16:
+            print(f"Skipping {network} on {interface}: network larger than /16")
+            continue
+        networks[interface] = str(network)
     return networks
 
 def main():
     networks = get_networks()
+    if not networks:
+        print("No scannable networks found.")
+        return
     for interface, ip_range in networks.items():
         print(f"Scanning {ip_range} on {interface}")
         scan_result = scan(ip_range)

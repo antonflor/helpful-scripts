@@ -6,6 +6,12 @@ if [ "$(id -u)" != "0" ]; then
    exit 1
 fi
 
+# Check that arp-scan is installed
+if ! command -v arp-scan &> /dev/null; then
+    echo "arp-scan is not installed. Install it with: apt install arp-scan" 1>&2
+    exit 1
+fi
+
 # Function to get subnets from interfaces
 get_subnets() {
     ip -o addr show | awk '$3 == "inet" {print $4}'
@@ -40,4 +46,4 @@ done
 
 # Scan the chosen subnet for hosts and sort the output
 echo "Scanning for active hosts on $subnet using interface $interface..."
-sudo arp-scan --interface="$interface" "$subnet" | sort -t . -k 3,3n -k 4,4n
+arp-scan --interface="$interface" "$subnet" | sort -t . -k 3,3n -k 4,4n

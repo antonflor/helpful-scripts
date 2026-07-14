@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Check for CPU virtualization support
-if egrep -c '(vmx|svm)' /proc/cpuinfo > 0; then
+if grep -Eq 'vmx|svm' /proc/cpuinfo; then
     echo "Installer can continue: CPU supports virtualization."
 else
     echo "CPU does not support virtualization. Exiting."
@@ -15,7 +15,7 @@ sudo apt install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils 
 
 # Add the current user to the libvirt group
 echo "Adding $(whoami) to the libvirt group..."
-sudo usermod -aG libvirt $(whoami)
+sudo usermod -aG libvirt "$(whoami)"
 
 # Inform the user
 echo "User $(whoami) added to libvirt group."
@@ -26,9 +26,9 @@ kvm-ok
 
 # Check libvirtd service status
 echo "Checking libvirtd service status..."
-serviceStatus=$(sudo systemctl status libvirtd | grep "Active:")
+serviceStatus=$(sudo systemctl status libvirtd --no-pager | grep "Active:")
 
-echo $serviceStatus
+echo "$serviceStatus"
 
 # Check if libvirtd is active and running
 if [[ $serviceStatus == *"active (running)"* ]]; then

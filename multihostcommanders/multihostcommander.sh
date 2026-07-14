@@ -6,7 +6,9 @@ execute_ssh() {
     local commands=$2
 
     echo "--$host"
-    ssh -o StrictHostKeyChecking=no "$host" "$commands"
+    # -n prevents ssh from consuming the host list on stdin
+    # accept-new trusts unseen hosts but still rejects changed host keys
+    ssh -n -o StrictHostKeyChecking=accept-new "$host" "$commands"
 }
 
 # Prompt for the filename containing commands
@@ -34,5 +36,7 @@ fi
 
 # Read hosts from the file and execute commands on each
 while IFS= read -r host; do
+    # Skip blank lines and comments
+    [[ -z "$host" || "$host" == \#* ]] && continue
     execute_ssh "$host" "$commands"
 done < "$host_file"

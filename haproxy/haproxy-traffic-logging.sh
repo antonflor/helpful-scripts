@@ -1,3 +1,5 @@
+#!/bin/bash
+#
 # HAProxy Host Monitoring Script
 #
 # This Bash script is designed for monitoring hostnames, IPs, and ports configured in HAProxy.
@@ -21,17 +23,11 @@
 # 5. Monitor Inbound Traffic: The script monitors the source inbound traffic for the selected host
 #    (IP and port) for 60 seconds. It uses the `ss` command to track the traffic.
 #
-# 6. Loop for 60 Seconds: The monitoring occurs in a loop that lasts for 60 seconds, refreshing
-#    the traffic data every second.
-#
-# 7. End of Monitoring: After 60 seconds, the script concludes the monitoring process and notifies
-#    the user.
-#
 # Usage:
 #
 # - Run the script in a Bash environment.
 # - Ensure you have read access to HAProxy configuration files.
-# - The script requires `ss` command for monitoring network connections.
+# - The script requires the `ss` command for monitoring network connections.
 #
 # Note:
 #
@@ -40,11 +36,13 @@
 # - Use this script responsibly, especially in production environments, as continuous monitoring
 #   might impact system performance.
 
-
-#!/bin/bash
-
 # Command to get hostnames, IPs, and ports
 output=$(grep node /etc/haproxy/*.cfg | awk '{print $1 $4}' | sed 's|/etc/haproxy/||;s|.cfg:| |;s|:| |1' | sort | uniq)
+
+if [ -z "$output" ]; then
+    echo "No hosts found in /etc/haproxy/*.cfg (or the files are not readable)."
+    exit 1
+fi
 
 # Generate a list of hostnames
 echo "Available Hostnames:"
@@ -56,6 +54,11 @@ read -p "Enter the number of the hostname you want to check: " choice
 
 # Get the selected line
 selected_line=$(echo "$output" | sed -n "${choice}p")
+
+if [ -z "$selected_line" ]; then
+    echo "Invalid selection."
+    exit 1
+fi
 
 # Extract IP and port
 hostname=$(echo "$selected_line" | awk '{print $1}')
@@ -71,8 +74,9 @@ end=$((SECONDS+60))
 # Loop for 60 seconds
 while [ $SECONDS -lt $end ]; do
     # Run ss command to check source inbound traffic for the IP and port
-    ss -tn state all '( dport = :$port or sport = :$port )' and '( dst $ip or src $ip )'
-    
+    # (double quotes so $port and $ip are expanded in the filter)
+    ss -tn state all "( dport = :$port or sport = :$port )" and "( dst $ip or src $ip )"
+
     # Sleep for a short interval before running the command again
     sleep 1
 

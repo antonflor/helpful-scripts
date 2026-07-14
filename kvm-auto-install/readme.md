@@ -8,18 +8,15 @@ This repository contains a script for setting up a KVM (Kernel-based Virtual Mac
 - Sudo privileges on the system.
 
 ## Installation
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/yourusername/kvm-install-script.git
-   cd kvm-install-script
-   ```
+1. **Download the Script**:
+   Download `install_kvm.sh` to your system (or clone this repository).
 2. **Make the Script Executable**:
    ```bash
-   chmod +x kvm_install.sh
+   chmod +x install_kvm.sh
    ```
 3. **Run the Script**:
    ```bash
-   ./kvm_install.sh
+   ./install_kvm.sh
    ```
    Follow the on-screen instructions. The script will ask for your sudo password.
 
@@ -44,4 +41,4 @@ If you encounter issues, check the following:
 Contributions to improve the script or documentation are welcome. Please submit a pull request or open an issue if you have suggestions or find a bug.
 
 ## License
-This project is open-source and available under the [MIT License](LICENSE).
+This project is open-source and available under the [MIT License](../LICENSE).

@@ -6,8 +6,8 @@
 
 ## Prerequisites
 
-- SSH must be installed on your local machine.
-- You should have generated an SSH key pair (`id_rsa` and `id_rsa.pub`) on your local machine.
+- SSH must be installed on your local machine (including `ssh-copy-id`).
+- You should have generated an SSH key pair on your local machine (e.g. `ssh-keygen -t ed25519`).
 - SSH server must be running on the target hosts.
 
 ## Installation
@@ -33,12 +33,12 @@ You will be asked to enter the hostnames or IP addresses, separated by space:
 Enter the hostnames or IP addresses separated by space: host1.example.com host2.example.com
 ```
 
-The script will then loop through each host and copy your SSH public key using `ssh-copy-id`. You may be prompted to enter the user's password for each host.
+The script will then loop through each host and copy your SSH public key using `ssh-copy-id`. You may be prompted to enter the user's password for each host. Any hosts that fail are reported at the end.
 
 ## Note
 
-- The script assumes that the username on the remote hosts is the same as the username on the local machine. If this is not the case, modify the `ssh-copy-id` command accordingly.
-- Ensure that the SSH public key (`~/.ssh/id_rsa.pub`) exists and is correctly configured on your local machine before running the script.
+- The script assumes that the username on the remote hosts is the same as the username on the local machine. If this is not the case, enter hosts in `user@host` form.
+- `ssh-copy-id` uses your default public key. To use a specific key, run `ssh-copy-id -i ~/.ssh/yourkey.pub user@host` manually or modify the script accordingly.
 
 ## License
 
@@ -47,11 +47,3 @@ This project is licensed under the MIT License.
 ## Contributing
 
 Contributions are welcome. Please open an issue or submit a pull request with your changes.
-
-## Acknowledgments
-
-This script was created to simplify the process of managing SSH keys across multiple hosts.
-
-```
-Feel free to adjust the contents according to your project's specific deta
-```

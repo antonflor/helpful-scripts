@@ -15,14 +15,14 @@ This PowerShell script provides an easy and interactive way to retrieve SMART (S
 ### Prerequisites
 
 - Windows operating system.
-- PowerShell (comes pre-installed on Windows).
+- Windows PowerShell 5.1 or PowerShell 7+ (the script uses `Get-CimInstance`, which works in both).
 - Administrative privileges might be required depending on the system's configuration.
 
 ### Usage
 
-1. Download the `CheckSmartStatus.ps1` script.
+1. Download the `smart-status-check.ps1` script.
 2. Run PowerShell as an administrator.
-3. Navigate to the script's location and execute it by entering `.\CheckSmartStatus.ps1`.
+3. Navigate to the script's location and execute it by entering `.\smart-status-check.ps1`.
 4. Follow the on-screen prompts to select a drive and view its SMART data.
 
 ### Notes
