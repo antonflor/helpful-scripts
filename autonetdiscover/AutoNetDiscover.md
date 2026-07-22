@@ -1,57 +1,41 @@
-# README for AutoNetDiscover.sh
+# AutoNetDiscover
 
-## AutoNetDiscover.sh
+`autonetdiscover.sh` is a small interactive wrapper around `arp-scan`. It lists the IPv4 subnet attached to each active interface, keeps each subnet paired with the correct interface, and scans the selected network.
 
-### Description
+## Why the interface/subnet pairing matters
 
-AutoNetDiscover.sh is a Bash script for Debian-based systems that facilitates network discovery by scanning for active hosts within a user-selected subnet and network interface. This script is ideal for network administrators and IT professionals for tasks like network monitoring and auditing. It requires root privileges to operate.
+A host can have several interfaces, VLANs, bonds, or bridges. Selecting an interface and subnet independently can send a scan through the wrong Layer 2 segment. AutoNetDiscover presents valid pairs reported by `ip addr` and rejects mismatched non-interactive arguments.
 
-### Features
+## Requirements
 
-- Interactive selection of network interfaces and subnets.
-- Automated scanning of the chosen subnet for active hosts.
-- Outputs a list of active hosts, sorted by IP addresses.
+- Bash 4 or newer
+- `ip` from `iproute2`
+- `arp-scan`
+- Root privileges or equivalent raw-packet capabilities
 
-### Requirements
+On Debian or Ubuntu:
 
-- Bash shell environment.
-- `arp-scan` tool must be installed.
-- Root access is required to run the script.
+```bash
+sudo apt install arp-scan iproute2
+```
 
-### Usage
+## Usage
 
-1. Ensure the `arp-scan` tool is installed on your system.
+Interactive mode:
 
-2. Run the script with root privileges:
+```bash
+chmod +x autonetdiscover.sh
+sudo ./autonetdiscover.sh
+```
 
-   ```
-   sudo ./autonetdiscover.sh
-   ```
+Non-interactive mode:
 
-3. Select the desired network interface and subnet from the presented lists.
+```bash
+sudo ./autonetdiscover.sh --interface eth0 --subnet 192.0.2.10/24
+```
 
-4. The script will then scan the subnet and display the active hosts.
+The CIDR must exactly match an address/prefix currently assigned to the selected interface. Run `./autonetdiscover.sh --help` for the option summary.
 
-### Running the Script
+## Safety
 
-To execute the script, follow these steps:
-
-1. Open a terminal window.
-
-2. Navigate to the directory containing `autonetdiscover.sh`.
-
-3. Make the script executable (if not already) using:
-
-   ```
-   chmod +x autonetdiscover.sh
-   ```
-
-4. Run the script with `sudo`:
-
-   ```
-   sudo ./autonetdiscover.sh
-   ```
-
-### Important Note
-
-Network scanning can be seen as intrusive in certain environments. Always ensure you have proper authorization and are compliant with applicable policies and regulations before conducting network scans.
+Use this utility only on networks you own or are authorized to assess. ARP scanning generates broadcast traffic on the selected Layer 2 segment.
