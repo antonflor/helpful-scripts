@@ -1,44 +1,57 @@
-# KVM Installation Script
+# KVM/QEMU and libvirt Installer
 
-This repository contains a script for setting up a KVM (Kernel-based Virtual Machine) environment on a Debian-based system. It checks for CPU virtualization support, installs necessary packages, adds the user to the `libvirt` group, and verifies the installation.
+This script prepares a Debian or Ubuntu host for hardware-accelerated virtualization with KVM, QEMU, and libvirt.
 
-## Prerequisites
-- A Debian-based Linux distribution.
-- A CPU that supports hardware virtualization (Intel VT-x or AMD-V).
-- Sudo privileges on the system.
+## Behavior
 
-## Installation
-1. **Download the Script**:
-   Download `install_kvm.sh` to your system (or clone this repository).
-2. **Make the Script Executable**:
-   ```bash
-   chmod +x install_kvm.sh
-   ```
-3. **Run the Script**:
-   ```bash
-   ./install_kvm.sh
-   ```
-   Follow the on-screen instructions. The script will ask for your sudo password.
+- Checks that hardware virtualization is exposed before installing packages.
+- Supports `amd64` and `arm64` package selections.
+- Installs a headless virtualization stack by default.
+- Optionally installs `virt-manager` and `virt-viewer`.
+- Starts either `libvirtd.service` or the modular `virtqemud.service`, depending on the distribution.
+- Adds the invoking non-root user to available `libvirt` and `kvm` groups unless disabled.
+- Validates the system libvirt connection with `virsh`.
 
-## What the Script Does
-1. Checks if your CPU supports virtualization.
-2. Installs KVM, QEMU, and other necessary tools.
-3. Adds your user to the `libvirt` group.
-4. Checks the status of the `libvirtd` service.
+## Requirements
 
-## Post-Installation
-- You may need to log out and log back in for the group changes to take effect.
-- Run `kvm-ok` to verify that KVM is set up correctly.
-- Use `virsh` or `virt-manager` to manage your virtual machines.
+- Debian or Ubuntu
+- Intel VT-x, AMD-V, or ARM virtualization support exposed by the kernel/hypervisor
+- Root access or `sudo`
+- `systemd`
 
-## Troubleshooting
-If you encounter issues, check the following:
-- Ensure your CPU supports hardware virtualization.
-- Verify that you have sudo privileges.
-- Check the `libvirtd` service status if the script indicates it's not running.
+When running inside a virtual machine, the outer hypervisor must expose nested virtualization.
 
-## Contributing
-Contributions to improve the script or documentation are welcome. Please submit a pull request or open an issue if you have suggestions or find a bug.
+## Usage
 
-## License
-This project is open-source and available under the [MIT License](../LICENSE).
+Install the headless stack:
+
+```bash
+chmod +x install_kvm.sh
+./install_kvm.sh
+```
+
+Include desktop management tools:
+
+```bash
+./install_kvm.sh --with-gui
+```
+
+Skip user group changes:
+
+```bash
+./install_kvm.sh --skip-groups
+```
+
+After group membership changes, log out and back in before using `virsh` as a non-root user.
+
+## Validation
+
+Useful follow-up commands:
+
+```bash
+virsh -c qemu:///system list --all
+systemctl status libvirtd --no-pager
+systemctl status virtqemud --no-pager
+```
+
+Only one of the two service units may exist on a given system.
