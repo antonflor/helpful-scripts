@@ -1,37 +1,45 @@
-## PowerShell Script for SMART Data Retrieval
+# Windows Physical Disk Health Check
 
-### Description
+`smart-status-check.ps1` is an interactive PowerShell utility that displays Windows Storage health information and reliability counters for a selected physical disk.
 
-This PowerShell script provides an easy and interactive way to retrieve SMART (Self-Monitoring, Analysis, and Reporting Technology) data from hard drives on a Windows system. It lists all connected drives and allows the user to select a drive by its index number. After selection, the script displays the SMART status and detailed SMART data for the chosen drive.
+## Data sources
 
-### Features
+The script uses the built-in Windows Storage module:
 
-- **Drive Listing**: Automatically lists all physical drives connected to the system with their Device IDs and models.
-- **Interactive Selection**: Users can select a drive by simply entering its index number.
-- **SMART Status Retrieval**: Retrieves basic SMART status, indicating the health of the selected drive.
-- **Detailed SMART Data**: Provides more in-depth SMART data for a comprehensive understanding of the drive's condition.
-- **Error Handling**: Includes basic error handling for invalid selections and cases where SMART data is not available.
+- `Get-PhysicalDisk` for inventory, health, operational status, bus type, media type, and size
+- `Get-StorageReliabilityCounter` for controller-reported temperature, wear, power-on hours, error counters, latency maxima, and cycle counts
 
-### Prerequisites
+These counters are related to SMART/device telemetry but are not a raw decoder for every vendor-specific SMART attribute.
 
-- Windows operating system.
-- Windows PowerShell 5.1 or PowerShell 7+ (the script uses `Get-CimInstance`, which works in both).
-- Administrative privileges might be required depending on the system's configuration.
+## Requirements
 
-### Usage
+- Windows 10/11 or Windows Server with the Storage module
+- Windows PowerShell 5.1 or PowerShell 7+
+- Administrative PowerShell recommended for the broadest controller access
 
-1. Download the `smart-status-check.ps1` script.
-2. Run PowerShell as an administrator.
-3. Navigate to the script's location and execute it by entering `.\smart-status-check.ps1`.
-4. Follow the on-screen prompts to select a drive and view its SMART data.
+## Usage
 
-### Notes
+Interactive selection:
 
-- The script's ability to retrieve SMART data depends on the system's hardware, drivers, and Windows version.
-- In some cases, the script may not be able to retrieve SMART data due to limitations or lack of support from the system's storage controller or drivers.
-- For comprehensive drive health monitoring, consider using specialized third-party tools like CrystalDiskInfo or GSmartControl.
+```powershell
+.\smart-status-check.ps1
+```
 
-### Release Notes
+Select a disk non-interactively by the displayed index:
 
-- Initial release: Basic functionality for listing drives and retrieving SMART data.
-- Future updates may include enhanced compatibility, additional features, and improved error handling.
+```powershell
+.\smart-status-check.ps1 -DiskIndex 0
+```
+
+## Exit codes
+
+- `0` — the selected disk is reported healthy
+- `1` — enumeration, platform, or command failure
+- `2` — invalid selection or Windows reports a degraded/non-OK disk state
+
+## Limitations
+
+- USB bridges, RAID controllers, virtual disks, and some vendor drivers may not expose reliability counters.
+- Missing counters do not prove a disk is healthy.
+- Windows health status should be considered alongside backups, vendor diagnostics, event logs, and application-level symptoms.
+- Replace failing or suspect media promptly; this utility is not a substitute for current backups.
