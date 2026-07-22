@@ -1,161 +1,217 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -u -o pipefail
 
-# Check if the script is running as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root"
-  exit 1
-fi
-
-function network_scan() {
-    echo "Scanning for available subnets..."
-
-    # Get a list of IP addresses and their associated subnets
-    local ips=($(ip -o -f inet addr show | awk '/scope global/ {print $4}'))
-
-    if [ ${#ips[@]} -eq 0 ]; then
-        echo "No subnets found."
-        return
+require_command() {
+    local command_name=$1
+    local package_hint=${2:-$1}
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        echo "Required command not found: $command_name (package: $package_hint)" >&2
+        return 1
     fi
-
-    echo "Select a subnet to scan:"
-    local i=1
-    for ip in "${ips[@]}"; do
-        echo "[$i] $ip"
-        ((i++))
-    done
-
-    read -p "Enter your choice: " choice
-    local selected_subnet=${ips[$choice-1]}
-
-    if [ -z "$selected_subnet" ]; then
-        echo "Invalid choice. Please try again."
-        return
-    fi
-
-    echo "Starting network scan on $selected_subnet..."
-    nmap "$selected_subnet"
 }
 
-function performance_test() {
-    # Prefer iperf3, fall back to iperf
-    local iperf_cmd
-    if command -v iperf3 &> /dev/null; then
-        iperf_cmd="iperf3"
-    elif command -v iperf &> /dev/null; then
-        iperf_cmd="iperf"
+run_privileged() {
+    if ((EUID == 0)); then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
     else
-        echo "iperf3 (or iperf) is not installed. Please install it to proceed."
-        return
+        echo "This action requires root privileges and sudo is unavailable." >&2
+        return 1
     fi
-
-    echo "Ensure that $iperf_cmd is running in server mode on the server (${iperf_cmd} -s)."
-    read -p "Press [Enter] once confirmed..."
-
-    echo "Starting performance test..."
-    read -p "Enter server IP: " server_ip
-    "$iperf_cmd" -c "$server_ip"
 }
 
-function traffic_analysis() {
-    echo "Starting traffic analysis..."
+select_item() {
+    local prompt=$1
+    shift
+    local -a items=("$@")
+    local choice
 
-    # List available network interfaces
-    local interfaces=($(ip -o link show | awk -F': ' '{print $2}'))
-
-    if [ ${#interfaces[@]} -eq 0 ]; then
-        echo "No network interfaces found."
-        return
+    if ((${#items[@]} == 0)); then
+        return 1
     fi
 
-    echo "Select a network interface:"
-    local i=1
-    for intf in "${interfaces[@]}"; do
-        echo "[$i] $intf"
-        ((i++))
+    for index in "${!items[@]}"; do
+        printf '[%d] %s\n' "$((index + 1))" "${items[index]}"
     done
 
-    read -p "Enter your choice: " choice
-    local selected_interface=${interfaces[$choice-1]}
+    read -r -p "$prompt" choice
+    if [[ ! "$choice" =~ ^[0-9]+$ ]] || ((choice < 1 || choice > ${#items[@]})); then
+        echo "Invalid selection." >&2
+        return 1
+    fi
 
-    if [ -z "$selected_interface" ]; then
-        echo "Invalid choice. Please try again."
+    SELECTED_ITEM=${items[choice-1]}
+}
+
+prompt_nonempty() {
+    local prompt=$1
+    local value
+    read -r -p "$prompt" value
+    if [[ -z "$value" ]]; then
+        echo "A value is required." >&2
+        return 1
+    fi
+    PROMPT_VALUE=$value
+}
+
+network_scan() {
+    require_command ip iproute2 || return
+    require_command nmap nmap || return
+
+    mapfile -t subnets < <(
+        ip -o -4 addr show up scope global |
+            awk '{print $2 " -> " $4}' |
+            sort -u
+    )
+
+    if ! select_item "Select a subnet: " "${subnets[@]}"; then
+        echo "No subnet selected." >&2
         return
     fi
 
-    # Capture 100 packets on the selected interface
-    tcpdump -i "$selected_interface" -c 100
+    subnet=${SELECTED_ITEM#* -> }
+    echo "Running host discovery on $subnet..."
+    nmap -sn "$subnet"
 }
 
-function network_path_tracing() {
-    echo "Starting network path tracing..."
-    read -p "Enter destination to trace (e.g., google.com): " dest
-    traceroute "$dest"
+performance_test() {
+    local iperf_command
+    if command -v iperf3 >/dev/null 2>&1; then
+        iperf_command=iperf3
+    elif command -v iperf >/dev/null 2>&1; then
+        iperf_command=iperf
+    else
+        echo "Install iperf3 (preferred) or iperf before running this test." >&2
+        return
+    fi
+
+    prompt_nonempty "Iperf server hostname or IP: " || return
+    server=$PROMPT_VALUE
+    echo "The remote system must be running: $iperf_command -s"
+    "$iperf_command" -c "$server"
 }
 
-function dns_query_testing() {
-    echo "Starting DNS query testing..."
-    read -p "Enter the domain name to query (e.g., example.com): " domain
-    dig "$domain"
+packet_capture() {
+    require_command ip iproute2 || return
+    require_command tcpdump tcpdump || return
+
+    mapfile -t interfaces < <(
+        ip -o link show up |
+            awk -F': ' '{print $2}' |
+            sed 's/@.*//' |
+            sort -u
+    )
+
+    select_item "Select an interface: " "${interfaces[@]}" || return
+    interface=$SELECTED_ITEM
+
+    read -r -p "Packet count [100]: " packet_count
+    packet_count=${packet_count:-100}
+    if [[ ! "$packet_count" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Packet count must be a positive integer." >&2
+        return
+    fi
+
+    echo "Capturing $packet_count packets on $interface..."
+    run_privileged tcpdump -nn -i "$interface" -c "$packet_count"
 }
 
-function interface_routing_info() {
-    echo "Displaying interface and routing information..."
-    echo "Network Interfaces:"
-    ip link show
-    echo "Routing Table:"
+trace_path() {
+    require_command traceroute traceroute || return
+    prompt_nonempty "Destination hostname or IP: " || return
+    traceroute "$PROMPT_VALUE"
+}
+
+dns_query() {
+    require_command dig dnsutils || return
+    prompt_nonempty "Domain name: " || return
+    domain=$PROMPT_VALUE
+    read -r -p "DNS record type [A]: " record_type
+    record_type=${record_type:-A}
+    dig "$domain" "$record_type"
+}
+
+interface_and_routing_info() {
+    require_command ip iproute2 || return
+    echo "IPv4 and IPv6 addresses:"
+    ip -brief address
+    echo
+    echo "Routing tables:"
     ip route show
+    ip -6 route show
+    echo
+    echo "Neighbor table:"
+    ip neighbor show
 }
 
-function packet_sniffing_inspection() {
-    echo "Starting packet sniffing and inspection..."
-    read -p "Enter network interface for packet capture (e.g., eth0): " interface
-    tcpdump -i "$interface" -c 20  # Captures 20 packets, modify as needed
+socket_summary() {
+    require_command ss iproute2 || return
+    echo "Socket summary:"
+    ss -s
+    echo
+    echo "Listening TCP and UDP sockets:"
+    run_privileged ss -Hltunp
 }
 
-function basic_port_checking() {
-    echo "Starting basic port checking..."
-    read -p "Enter the host (e.g., example.com): " host
-    read -p "Enter the port (e.g., 80): " port
-    nc -zv "$host" "$port"
+port_check() {
+    require_command nc netcat-openbsd || return
+    prompt_nonempty "Target hostname or IP: " || return
+    host=$PROMPT_VALUE
+    read -r -p "TCP port: " port
+    if [[ ! "$port" =~ ^[0-9]+$ ]] || ((port < 1 || port > 65535)); then
+        echo "Port must be between 1 and 65535." >&2
+        return
+    fi
+    nc -zv -w 5 "$host" "$port"
 }
 
-function snmp_data_collection() {
-    echo "Starting SNMP data collection..."
-    read -p "Enter SNMP agent address (e.g., localhost): " agent
-    read -p "Enter SNMP community string (e.g., public): " community
-    read -p "Enter SNMP OID to retrieve (e.g., system): " oid
+snmp_query() {
+    require_command snmpwalk snmp || return
+    prompt_nonempty "SNMP agent hostname or IP: " || return
+    agent=$PROMPT_VALUE
+    read -r -s -p "SNMPv2c community: " community
+    echo
+    if [[ -z "$community" ]]; then
+        echo "A community string is required." >&2
+        return
+    fi
+    read -r -p "OID [1.3.6.1.2.1.1]: " oid
+    oid=${oid:-1.3.6.1.2.1.1}
     snmpwalk -v2c -c "$community" "$agent" "$oid"
 }
 
-function show_menu() {
-    echo "Network Diagnostic and Monitoring Tool"
-    echo "1. Network Scanning and Discovery"
-    echo "2. Performance Testing"
-    echo "3. Traffic Analysis"
-    echo "4. Network Path Tracing"
-    echo "5. DNS Query Testing"
-    echo "6. Interface and Routing Information"
-    echo "7. Packet Sniffing and Inspection"
-    echo "8. Basic Port Checking"
-    echo "9. SNMP Data Collection"
-    echo "0. Exit"
-    echo "Enter your choice: "
+show_menu() {
+    cat <<'EOF'
+
+Network Diagnostic Toolkit
+1. Discover hosts with nmap
+2. Run an iperf client test
+3. Capture packets with tcpdump
+4. Trace a network path
+5. Query DNS
+6. Show interfaces, routes, and neighbors
+7. Show socket and listener information
+8. Check a TCP port
+9. Run an SNMPv2c walk
+0. Exit
+EOF
 }
 
 while true; do
     show_menu
-    read choice
-    case $choice in
+    read -r -p "Choice: " choice
+    case "$choice" in
         1) network_scan ;;
         2) performance_test ;;
-        3) traffic_analysis ;;
-        4) network_path_tracing ;;
-        5) dns_query_testing ;;
-        6) interface_routing_info ;;
-        7) packet_sniffing_inspection ;;
-        8) basic_port_checking ;;
-        9) snmp_data_collection ;;
-        0) echo "Exiting..."; exit 0 ;;
-        *) echo "Invalid choice. Please try again."; continue ;;
+        3) packet_capture ;;
+        4) trace_path ;;
+        5) dns_query ;;
+        6) interface_and_routing_info ;;
+        7) socket_summary ;;
+        8) port_check ;;
+        9) snmp_query ;;
+        0) echo "Exiting."; exit 0 ;;
+        *) echo "Invalid choice." >&2 ;;
     esac
 done
