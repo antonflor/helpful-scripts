@@ -1,56 +1,133 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-set -o pipefail
+add_user_to_group=true
 
-# Function to check if a command was successful
-check_success() {
-    if [ $? -ne 0 ]; then
-        echo "Error: $1 failed to execute."
-        exit 1
-    fi
+usage() {
+    cat <<'EOF'
+Usage: install_docker.sh [--skip-group]
+
+Install Docker Engine from Docker's official apt repository on Debian or Ubuntu.
+
+Options:
+  --skip-group  Do not add the invoking user to the docker group.
+  -h, --help    Show this help text.
+EOF
 }
 
-# Update the package database
-echo "Updating package database..."
-sudo apt-get update
-check_success "Package database update"
+while (($#)); do
+    case "$1" in
+        --skip-group)
+            add_user_to_group=false
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
 
-# Install prerequisite packages
-echo "Installing prerequisite packages..."
-sudo apt-get install -y ca-certificates curl
-check_success "Prerequisite package installation"
+trap 'echo "Docker installation failed near line $LINENO." >&2' ERR
 
-# Add Docker's official GPG key
-echo "Adding Docker's GPG key..."
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-check_success "GPG key addition"
-sudo chmod a+r /etc/apt/keyrings/docker.asc
+if [[ ! -r /etc/os-release ]]; then
+    echo "Cannot identify the operating system: /etc/os-release is unavailable." >&2
+    exit 1
+fi
 
-# Set up the Docker repository
-echo "Setting up the Docker repository..."
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-check_success "Docker repository setup"
+# shellcheck disable=SC1091
+. /etc/os-release
 
-# Update the package database with Docker packages
-echo "Updating package database with Docker packages..."
-sudo apt-get update
-check_success "Package database update with Docker packages"
+case "${ID:-}" in
+    debian|ubuntu)
+        docker_distribution=$ID
+        ;;
+    *)
+        echo "Unsupported distribution: ${PRETTY_NAME:-${ID:-unknown}}" >&2
+        echo "This installer supports Docker-supported Debian and Ubuntu releases." >&2
+        exit 1
+        ;;
+esac
 
-# Install Docker
-echo "Installing Docker..."
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-check_success "Docker installation"
+codename=${VERSION_CODENAME:-${UBUNTU_CODENAME:-}}
+if [[ -z "$codename" ]]; then
+    echo "Could not determine the distribution codename from /etc/os-release." >&2
+    exit 1
+fi
 
-# Verify Docker installation
-echo "Verifying Docker installation..."
+for command in apt-get dpkg install; do
+    command -v "$command" >/dev/null 2>&1 || {
+        echo "Required command not found: $command" >&2
+        exit 1
+    }
+done
+
+if ((EUID == 0)); then
+    sudo_cmd=()
+else
+    command -v sudo >/dev/null 2>&1 || {
+        echo "sudo is required when the script is not run as root." >&2
+        exit 1
+    }
+    sudo_cmd=(sudo)
+fi
+
+invoking_user=${SUDO_USER:-${USER:-}}
+architecture=$(dpkg --print-architecture)
+key_tmp=$(mktemp)
+trap 'rm -f "$key_tmp"' EXIT
+
+echo "Installing prerequisites..."
+"${sudo_cmd[@]}" apt-get update
+"${sudo_cmd[@]}" apt-get install -y ca-certificates curl
+
+echo "Installing Docker's signing key..."
+"${sudo_cmd[@]}" install -m 0755 -d /etc/apt/keyrings
+curl -fsSL "https://download.docker.com/linux/${docker_distribution}/gpg" -o "$key_tmp"
+"${sudo_cmd[@]}" install -m 0644 "$key_tmp" /etc/apt/keyrings/docker.asc
+
+echo "Configuring Docker's apt repository..."
+cat <<EOF | "${sudo_cmd[@]}" tee /etc/apt/sources.list.d/docker.sources >/dev/null
+Types: deb
+URIs: https://download.docker.com/linux/${docker_distribution}
+Suites: ${codename}
+Components: stable
+Architectures: ${architecture}
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+"${sudo_cmd[@]}" apt-get update
+"${sudo_cmd[@]}" apt-get install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+
+if command -v systemctl >/dev/null 2>&1; then
+    echo "Enabling and starting Docker..."
+    "${sudo_cmd[@]}" systemctl enable --now docker
+fi
+
 docker --version
-check_success "Docker verification"
+docker compose version
 
-# Add the current user to the Docker group (optional)
-echo "Adding current user to the Docker group..."
-sudo usermod -aG docker "${USER}"
-check_success "User addition to Docker group"
+if [[ "$add_user_to_group" == true ]]; then
+    if [[ -n "$invoking_user" && "$invoking_user" != root ]]; then
+        echo "Adding $invoking_user to the docker group..."
+        echo "Warning: docker group membership grants root-equivalent host access."
+        "${sudo_cmd[@]}" usermod -aG docker "$invoking_user"
+        echo "Log out and back in before running Docker without sudo."
+    else
+        echo "No non-root invoking user was detected; skipping docker group membership."
+    fi
+else
+    echo "Skipping docker group membership as requested."
+fi
 
-echo "Docker installation and setup completed successfully."
-echo "Log out and back in (or reboot) for the docker group change to take effect."
+echo "Docker Engine installation completed successfully."
