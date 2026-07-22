@@ -1,61 +1,49 @@
-# Network Diagnostic and Monitoring Tool
+# Network Diagnostic Toolkit
 
-This Bash script provides a suite of network diagnostic and monitoring tools to help network and cloud engineers efficiently assess and analyze their network environment. The script is modular and includes functionalities such as network scanning, performance testing, traffic analysis, and more.
+This interactive Bash utility groups common network inspection and troubleshooting commands behind a menu. It checks dependencies only when a feature is selected and requests elevated privileges only for actions that need them.
 
 ## Features
 
-- **Network Scanning and Discovery:** Utilizes `nmap` for network scanning.
-- **Performance Testing:** Employs `iperf3` (or `iperf`) for testing network bandwidth.
-- **Traffic Analysis:** Leverages `tcpdump` for monitoring network traffic.
-- **Network Path Tracing:** Uses `traceroute` to trace packet paths.
-- **DNS Query Testing:** Incorporates `dnsutils` for DNS testing.
-- **Interface and Routing Information:** Utilizes `iproute2` and `net-tools`.
-- **Packet Sniffing and Inspection:** Applies `ngrep` for packet analysis.
-- **Basic Port Checking:** Implements `netcat` for port checking.
-- **SNMP Data Collection:** Uses `snmpd` for SNMP data gathering.
+1. **Host discovery** — `nmap -sn` against a locally attached IPv4 subnet
+2. **Bandwidth testing** — `iperf3` or legacy `iperf` client mode
+3. **Packet capture** — bounded `tcpdump` capture on a selected active interface
+4. **Path tracing** — `traceroute`
+5. **DNS lookup** — `dig` with a selectable record type
+6. **Local network state** — addresses, IPv4/IPv6 routes, and neighbors via `ip`
+7. **Socket inspection** — `ss` summary and listening sockets
+8. **TCP port check** — `nc` with a five-second timeout
+9. **SNMP query** — SNMPv2c `snmpwalk` with hidden community-string input
 
-## Prerequisites
+## Requirements
 
-Before running the script, ensure the following tools are installed:
+Install only the tools you need. On Debian or Ubuntu, the complete set is:
 
-- nmap
-- iperf3 (or iperf)
-- tcpdump
-- traceroute
-- dnsutils
-- iproute2
-- ngrep
-- netcat
-- snmpd
-- net-tools
-
-## Installation
-
-1. Clone the repository or download the script.
-2. Make the script executable:
-
+```bash
+sudo apt install \
+  iproute2 \
+  nmap \
+  iperf3 \
+  tcpdump \
+  traceroute \
+  dnsutils \
+  netcat-openbsd \
+  snmp
 ```
-chmod +x networkdiagnostictool.sh
-```
+
+The toolkit no longer requires the entire menu to run as root. It invokes `sudo` for packet capture and privileged socket/process details when needed.
 
 ## Usage
 
-Run the script with root privileges:
-
+```bash
+chmod +x networkdiagnostictool.sh
+./networkdiagnostictool.sh
 ```
-sudo ./networkdiagnostictool.sh
-```
 
-Follow the on-screen prompts to select the desired network diagnostic or monitoring function.
+Follow the menu prompts. Press `Ctrl+C` to stop a long-running command such as `tcpdump`, `traceroute`, or `snmpwalk`.
 
-## Contributing
+## Operational notes
 
-Contributions to this project are welcome. Please fork the repository and submit a pull request with your improvements.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Disclaimer
-
-This tool is intended for network diagnostic and monitoring purposes. Please ensure you have proper authorization before scanning or monitoring any network.
+- Host discovery uses `nmap -sn`, which discovers responsive hosts without performing a default port scan.
+- Iperf requires a remote server started with `iperf3 -s` or `iperf -s`.
+- SNMPv2c community strings are credentials and are transmitted without encryption. Prefer SNMPv3 where security is required.
+- Packet capture and network scanning should be performed only with proper authorization.
