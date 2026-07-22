@@ -1,51 +1,47 @@
-# Docker Installation Script for Debian
+# Docker Engine Installer for Debian and Ubuntu
 
-This script automates the installation of Docker Engine on Debian systems using Docker's official apt repository. It sets up the repository with the current recommended method (keyring in `/etc/apt/keyrings`), installs Docker along with the Buildx and Compose plugins, and adds the current user to the `docker` group.
+This script installs Docker Engine, containerd, Buildx, and the Docker Compose plugin from Docker's official apt repository.
 
-## Overview
+## Behavior
 
-The script performs the following actions:
+- Supports Docker-supported Debian and Ubuntu releases.
+- Detects the distribution, release codename, and package architecture.
+- Uses the modern deb822 `.sources` repository format and a dedicated apt keyring.
+- Can be rerun safely to repair or upgrade the installation.
+- Enables and starts Docker when `systemd` is available.
+- Adds the invoking non-root user to the `docker` group unless `--skip-group` is supplied.
 
-1. Updates the package database.
-2. Installs prerequisite packages (`ca-certificates`, `curl`).
-3. Adds Docker's official GPG key to `/etc/apt/keyrings/docker.asc`.
-4. Sets up the Docker apt repository for your Debian release (detected via `/etc/os-release`).
-5. Updates the package database with Docker packages.
-6. Installs Docker (`docker-ce`, `docker-ce-cli`, `containerd.io`, `docker-buildx-plugin`, `docker-compose-plugin`).
-7. Verifies the Docker installation.
-8. Adds the current user to the `docker` group for managing Docker as a non-root user.
+## Requirements
 
-## Prerequisites
+- Debian or Ubuntu with internet access
+- `apt-get` and `dpkg`
+- Root access or `sudo`
 
-- A Debian system (Debian 12 "bookworm" or newer) with internet access.
-- Sudo privileges for the executing user.
+Derivatives are intentionally rejected because their release codenames may not map cleanly to Docker's repositories.
 
 ## Usage
 
-1. **Download the Script:**
-   Download the `install_docker.sh` script to your Debian system.
+```bash
+chmod +x install_docker.sh
+./install_docker.sh
+```
 
-2. **Make the Script Executable:**
+Skip docker group membership:
 
-   ```
-   chmod +x install_docker.sh
-   ```
+```bash
+./install_docker.sh --skip-group
+```
 
-3. **Run the Script** (as your normal user, not as root — the script uses `sudo` where needed):
+Run `./install_docker.sh --help` for the option summary.
 
-   ```
-   ./install_docker.sh
-   ```
+## Security note
 
-   The script will ask for the sudo password if required.
+Membership in the `docker` group grants root-equivalent control of the host. Use `--skip-group` on shared systems or whenever users should run Docker through `sudo` instead.
 
-## Notes
+## Validation
 
-- The script automatically answers 'yes' to all prompts (`-y` flag with `apt-get`).
-- The script includes checks after each critical step. If any step fails, the script will terminate and an error message will be displayed.
-- After installation, log out and log back in (or reboot) so the `docker` group membership takes effect and you can run `docker` without sudo.
-- Adding a user to the `docker` group grants root-equivalent access to the host — only do this for trusted users.
+After installation, the script prints the installed Docker Engine and Compose versions. After logging out and back in, a trusted docker-group member can test the daemon with:
 
-## Disclaimer
-
-This script is provided "as is", without warranty of any kind. Use it at your own risk.
+```bash
+docker run --rm hello-world
+```
