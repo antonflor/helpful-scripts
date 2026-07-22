@@ -1,30 +1,57 @@
 # Network ARP Scanner
 
-A Python script that ARP-scans the local network(s) attached to your machine and lists each active device's IP and MAC address, sorted by IP, with a per-interface host count.
+A Python utility that discovers active IPv4 hosts on directly connected networks and prints their IP and MAC addresses per interface.
 
-## Features
+## Improvements and behavior
 
-- Auto-detects all IPv4 interfaces (loopback excluded) and derives each one's real network from its netmask — no hardcoded subnet assumptions.
-- Skips networks larger than /16 to avoid unreasonably long scans.
-- Sorted, per-interface output with a total host count.
+- Detects IPv4 networks from each interface and its actual netmask.
+- Sends each ARP request through the interface that owns the network.
+- Supports multiple IPv4 addresses and networks per interface.
+- Deduplicates responses and sorts results numerically by IP address.
+- Skips loopback and link-local addresses.
+- Refuses unexpectedly large scans by default.
 
 ## Requirements
 
-- Python 3
-- `scapy` and `netifaces` libraries:
+- Linux or another Unix-like system with raw-packet support
+- Python 3.9 or newer
+- Root privileges
+- `scapy` and `netifaces`
 
-  ```
-  pip install scapy netifaces
-  ```
+Install the Python dependencies:
 
-- Root privileges (raw packet access).
+```bash
+python3 -m pip install scapy netifaces
+```
 
 ## Usage
 
-```
+Scan all eligible connected networks:
+
+```bash
 sudo python3 arpscanner.py
 ```
 
-## Disclaimer
+Scan one interface:
 
-Ensure you have authorization before scanning any network.
+```bash
+sudo python3 arpscanner.py --interface eth0
+```
+
+Select multiple interfaces and change the response timeout:
+
+```bash
+sudo python3 arpscanner.py -i eth0 -i bond0 --timeout 5
+```
+
+Networks larger than 4,096 addresses are skipped by default. Override the limit only when the scope is intentional:
+
+```bash
+sudo python3 arpscanner.py --max-addresses 65536 --allow-large
+```
+
+Run `python3 arpscanner.py --help` for all options.
+
+## Safety
+
+ARP scanning is limited to directly connected Layer 2 networks. Run it only on networks you own or are authorized to assess. Large scans can generate substantial broadcast traffic.
