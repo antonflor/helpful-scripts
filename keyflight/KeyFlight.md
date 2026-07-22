@@ -1,49 +1,55 @@
-# KeyFlight - SSH Key Distributor
+# KeyFlight — SSH Public Key Distributor
 
-## Overview
+`keyflight.sh` installs an SSH public key on multiple remote hosts by invoking `ssh-copy-id` once per target. It accepts targets from arguments, a file, or an interactive prompt and reports failures without abandoning the remaining hosts.
 
-`keyflight.sh` is a simple Bash script that automates the process of copying your SSH key to multiple hosts. This is particularly useful for setting up password-less SSH logins to a list of servers or remote machines.
+## Requirements
 
-## Prerequisites
+- Bash 4 or newer
+- OpenSSH client tools, including `ssh-copy-id`
+- A local SSH key pair
+- Password or other interactive authentication for initial key installation
 
-- SSH must be installed on your local machine (including `ssh-copy-id`).
-- You should have generated an SSH key pair on your local machine (e.g. `ssh-keygen -t ed25519`).
-- SSH server must be running on the target hosts.
+Create an Ed25519 key when needed:
 
-## Installation
-
-1. Clone this repository or download the `keyflight.sh` script directly.
-2. Make the script executable:
-
-```
-chmod +x keyflight.sh
+```bash
+ssh-keygen -t ed25519
 ```
 
 ## Usage
 
-Run the script and follow the prompt to enter the hostnames or IP addresses of the target machines:
+Pass hosts directly:
 
-```
-./keyflight.sh
-```
-
-You will be asked to enter the hostnames or IP addresses, separated by space:
-
-```
-Enter the hostnames or IP addresses separated by space: host1.example.com host2.example.com
+```bash
+./keyflight.sh admin@host1.example.com admin@host2.example.com
 ```
 
-The script will then loop through each host and copy your SSH public key using `ssh-copy-id`. You may be prompted to enter the user's password for each host. Any hosts that fail are reported at the end.
+Use a specific public key and SSH port:
 
-## Note
+```bash
+./keyflight.sh \
+  --identity ~/.ssh/id_ed25519.pub \
+  --port 2222 \
+  admin@host1.example.com admin@host2.example.com
+```
 
-- The script assumes that the username on the remote hosts is the same as the username on the local machine. If this is not the case, enter hosts in `user@host` form.
-- `ssh-copy-id` uses your default public key. To use a specific key, run `ssh-copy-id -i ~/.ssh/yourkey.pub user@host` manually or modify the script accordingly.
+Read hosts from a file:
 
-## License
+```bash
+./keyflight.sh --hosts-file hosts.txt
+```
 
-This project is licensed under the MIT License.
+The hosts file may contain blank lines, comments, and multiple whitespace-separated targets:
 
-## Contributing
+```text
+# Production
+admin@app01.example.com
+admin@app02.example.com admin@app03.example.com
+```
 
-Contributions are welcome. Please open an issue or submit a pull request with your changes.
+Duplicate targets are removed before processing. Run `./keyflight.sh --help` for all options.
+
+## Notes
+
+- Without `--identity`, `ssh-copy-id` selects the normal default public key.
+- A single `--port` value applies to all targets. Use SSH config host aliases when targets require different ports or identities.
+- Host-key verification and authentication behavior remain controlled by your OpenSSH configuration.
