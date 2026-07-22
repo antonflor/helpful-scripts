@@ -1,42 +1,67 @@
-### README for MultiHostCommander
+# MultiHostCommander
 
-------
+`multihostcommander.sh` sends a local command file to a remote shell on each SSH host in a host file. It continues after individual failures and prints a final success/failure summary.
 
-#### Description
+## Safety defaults
 
-This script allows users to execute a set of commands on multiple Debian hosts via SSH. It reads commands and host details from user-provided files, streamlining batch operations on servers.
+- SSH batch mode is enabled, so jobs fail instead of hanging on password prompts.
+- Existing host keys must already be trusted by default.
+- Use `--accept-new` to trust previously unseen keys while still rejecting changed keys.
+- The command file is streamed over standard input rather than embedded in an SSH command string, preserving multiline scripts and reducing quoting problems.
 
-------
+## Requirements
 
-#### Usage
+- Bash 4 or newer on the control host
+- OpenSSH client
+- SSH key-based authentication for each target
+- A compatible remote shell; `sh` is the default
 
-1. **Prepare Command File**: Create a text file containing the commands you want to execute on the Debian hosts. Each command should be on a separate line.
-2. **Prepare Host File**: Create a text file listing the Debian hosts. Each host should be on a new line.
-3. **Execute the Script**: Run the script by typing `./scriptname.sh` in the terminal. When prompted, enter the filenames for the command and host files.
-4. **Output**: The script connects to each host via SSH and executes the provided commands, displaying the output for each host.
+## Input files
 
-------
+`hosts.txt`:
 
-#### Requirements
-
-- SSH key-based authentication must be set up for each target host.
-- The script file should have executable permissions (`chmod +x multihostcommander.sh`).
-
-------
-
-#### Note
-
-- Ensure that the command and host files are correctly formatted and the paths provided during the prompt are accurate.
-- Blank lines and lines starting with `#` in the host file are skipped.
-- This script assumes that SSH key-based authentication is configured for all the target hosts.
-- New hosts are trusted automatically on first connection (`StrictHostKeyChecking=accept-new`), but connections are refused if a known host's key has changed.
-
-------
-
-#### Script File Permissions
-
-To make the script executable, run:
-
+```text
+# Web tier
+admin@web01.example.com
+admin@web02.example.com
 ```
+
+`commands.sh`:
+
+```sh
+hostname
+uname -r
+df -h /
+```
+
+Blank lines and comments in the host file are ignored. Duplicate hosts are removed.
+
+## Usage
+
+```bash
 chmod +x multihostcommander.sh
+./multihostcommander.sh \
+  --hosts hosts.txt \
+  --commands commands.sh
 ```
+
+Trust new host keys during first use:
+
+```bash
+./multihostcommander.sh \
+  --hosts hosts.txt \
+  --commands commands.sh \
+  --accept-new
+```
+
+Use Bash remotely and increase the connection timeout:
+
+```bash
+./multihostcommander.sh \
+  --hosts hosts.txt \
+  --commands commands.sh \
+  --shell bash \
+  --connect-timeout 20
+```
+
+Review command files carefully before running them across multiple systems. The utility intentionally executes the complete file on every listed host.
