@@ -1,86 +1,152 @@
-#!/bin/bash
-#
-# HAProxy Host Monitoring Script
-#
-# This Bash script is designed for monitoring hostnames, IPs, and ports configured in HAProxy.
-# It's particularly useful for administrators needing to track source inbound traffic to specific
-# hosts managed by HAProxy.
-#
-# Script Overview:
-#
-# 1. Extract Host Information: The script starts by extracting hostnames, IPs, and ports from
-#    HAProxy configuration files located in `/etc/haproxy/`. It uses `grep`, `awk`, `sed`, `sort`,
-#    and `uniq` to parse and format the data.
-#
-# 2. List Hostnames: It then displays a list of available hostnames for the user to choose from.
-#
-# 3. User Input for Host Selection: The user is prompted to select a hostname by entering the
-#    corresponding number.
-#
-# 4. Extract Selected Host Details: Based on the user's choice, the script extracts the specific
-#    hostname, IP, and port.
-#
-# 5. Monitor Inbound Traffic: The script monitors the source inbound traffic for the selected host
-#    (IP and port) for 60 seconds. It uses the `ss` command to track the traffic.
-#
-# Usage:
-#
-# - Run the script in a Bash environment.
-# - Ensure you have read access to HAProxy configuration files.
-# - The script requires the `ss` command for monitoring network connections.
-#
-# Note:
-#
-# - This script should be run with appropriate permissions to access HAProxy configuration files.
-# - It's designed for quick, real-time monitoring and does not log the output to a file.
-# - Use this script responsibly, especially in production environments, as continuous monitoring
-#   might impact system performance.
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-# Command to get hostnames, IPs, and ports
-output=$(grep node /etc/haproxy/*.cfg | awk '{print $1 $4}' | sed 's|/etc/haproxy/||;s|.cfg:| |;s|:| |1' | sort | uniq)
+config_dir=/etc/haproxy
+duration=60
+interval=1
 
-if [ -z "$output" ]; then
-    echo "No hosts found in /etc/haproxy/*.cfg (or the files are not readable)."
-    exit 1
-fi
+usage() {
+    cat <<'EOF'
+Usage: haproxy-traffic-logging.sh [options]
 
-# Generate a list of hostnames
-echo "Available Hostnames:"
-echo "$output" | awk '{print NR ": " $1}'
-echo "---------------------"
+Select a backend server declared by an HAProxy "server" directive and display
+matching established TCP connections at regular intervals.
 
-# Ask the user to choose a hostname
-read -p "Enter the number of the hostname you want to check: " choice
+Options:
+  --config-dir DIR  HAProxy configuration directory (default: /etc/haproxy)
+  --duration SEC    Monitoring duration in seconds (default: 60)
+  --interval SEC    Seconds between snapshots (default: 1)
+  -h, --help        Show this help text
+EOF
+}
 
-# Get the selected line
-selected_line=$(echo "$output" | sed -n "${choice}p")
-
-if [ -z "$selected_line" ]; then
-    echo "Invalid selection."
-    exit 1
-fi
-
-# Extract IP and port
-hostname=$(echo "$selected_line" | awk '{print $1}')
-ip=$(echo "$selected_line" | awk '{print $2}')
-port=$(echo "$selected_line" | awk '{print $3}')
-
-# Display the selected hostname
-echo "Checking source inbound traffic for $hostname ($ip:$port) for 60 seconds..."
-
-# Start time
-end=$((SECONDS+60))
-
-# Loop for 60 seconds
-while [ $SECONDS -lt $end ]; do
-    # Run ss command to check source inbound traffic for the IP and port
-    # (double quotes so $port and $ip are expanded in the filter)
-    ss -tn state all "( dport = :$port or sport = :$port )" and "( dst $ip or src $ip )"
-
-    # Sleep for a short interval before running the command again
-    sleep 1
-
-    echo "----------------------------------------"
+while (($#)); do
+    case "$1" in
+        --config-dir)
+            [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; exit 2; }
+            config_dir=$2
+            shift 2
+            ;;
+        --duration)
+            [[ $# -ge 2 && $2 =~ ^[1-9][0-9]*$ ]] || {
+                echo "--duration must be a positive integer" >&2
+                exit 2
+            }
+            duration=$2
+            shift 2
+            ;;
+        --interval)
+            [[ $# -ge 2 && $2 =~ ^[1-9][0-9]*$ ]] || {
+                echo "--interval must be a positive integer" >&2
+                exit 2
+            }
+            interval=$2
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
 done
 
-echo "Completed monitoring for 60 seconds."
+for command in awk basename getent sort ss; do
+    command -v "$command" >/dev/null 2>&1 || {
+        echo "Required command not found: $command" >&2
+        exit 1
+    }
+done
+
+shopt -s nullglob
+config_files=("$config_dir"/*.cfg)
+if ((${#config_files[@]} == 0)); then
+    echo "No .cfg files found in $config_dir." >&2
+    exit 1
+fi
+
+mapfile -t server_entries < <(
+    awk '
+        /^[[:space:]]*#/ { next }
+        /^[[:space:]]*server[[:space:]]+/ {
+            print FILENAME "|" $2 "|" $3
+        }
+    ' "${config_files[@]}" | sort -u
+)
+
+if ((${#server_entries[@]} == 0)); then
+    echo "No HAProxy backend server directives were found." >&2
+    exit 1
+fi
+
+labels=()
+valid_entries=()
+for entry in "${server_entries[@]}"; do
+    IFS='|' read -r file name target <<<"$entry"
+    if [[ "$target" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+        host=${BASH_REMATCH[1]}
+        port=${BASH_REMATCH[2]}
+    elif [[ "$target" =~ ^(.+):([0-9]+)$ ]]; then
+        host=${BASH_REMATCH[1]}
+        port=${BASH_REMATCH[2]}
+    else
+        continue
+    fi
+
+    valid_entries+=("$file|$name|$host|$port")
+    labels+=("$(basename "$file"): $name -> $host:$port")
+done
+
+if ((${#valid_entries[@]} == 0)); then
+    echo "No server directives with an explicit TCP port were found." >&2
+    exit 1
+fi
+
+echo "Available HAProxy backend servers:"
+PS3="Select a server to monitor: "
+select label in "${labels[@]}"; do
+    if [[ -n "$label" ]]; then
+        selected=${valid_entries[REPLY-1]}
+        break
+    fi
+    echo "Invalid selection. Please try again." >&2
+done
+
+IFS='|' read -r config_file server_name host port <<<"$selected"
+
+if [[ "$host" =~ ^[0-9a-fA-F:.]+$ ]]; then
+    resolved_host=$host
+else
+    resolved_host=$(getent ahosts "$host" 2>/dev/null | awk 'NR == 1 {print $1}' || true)
+    if [[ -z "$resolved_host" ]]; then
+        echo "Could not resolve backend hostname: $host" >&2
+        exit 1
+    fi
+fi
+
+echo "Monitoring established TCP connections for $server_name ($resolved_host:$port)."
+echo "Configuration: $config_file"
+echo "Duration: ${duration}s; interval: ${interval}s"
+
+end_time=$((SECONDS + duration))
+while ((SECONDS < end_time)); do
+    printf '\n[%(%Y-%m-%d %H:%M:%S)T]\n' -1
+    matches=0
+    while IFS= read -r connection; do
+        if [[ "$connection" == *"$resolved_host"* && "$connection" == *":$port"* ]]; then
+            printf '%s\n' "$connection"
+            matches=$((matches + 1))
+        fi
+    done < <(ss -Htn state established)
+
+    if ((matches == 0)); then
+        echo "No matching established connections."
+    fi
+    sleep "$interval"
+done
+
+echo "Monitoring complete."
