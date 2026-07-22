@@ -1,39 +1,51 @@
-# Plex Media Server Installation Script for Debian
+# Plex Media Server Installer for Debian-Based Systems
 
-This script downloads and installs the latest Plex Media Server release on a Debian (x86_64) system, then enables and starts the service.
+This script configures Plex's official apt repository and installs Plex Media Server on Debian, Ubuntu, and compatible Debian-based systems.
 
-## What the Script Does
+## Why it uses the apt repository
 
-1. Installs `curl` and `jq` if needed.
-2. Queries Plex's official download API (`plex.tv/api/downloads/5.json`) for the latest Debian x86_64 package URL.
-3. Downloads the `.deb` package to a temporary file.
-4. Installs the package (resolving dependencies if necessary) and cleans up the download.
-5. Enables and starts the `plexmediaserver` systemd service.
-6. Shows the service status.
+Plex changed its Linux repositories beginning with Plex Media Server 1.43.0. The installer uses the current v2 signing key and official repository so future public releases can be installed through normal `apt update` and `apt upgrade` workflows.
 
-## Prerequisites
+## What the script does
 
-- A Debian-based x86_64 system with internet access.
-- Sudo privileges for the executing user.
+1. Installs `ca-certificates`, `curl`, and `gnupg`.
+2. Downloads and installs Plex's v2 repository signing key.
+3. Removes superseded Plex source-list files.
+4. Configures `https://repo.plex.tv/deb/` with a dedicated keyring.
+5. Installs or upgrades the `plexmediaserver` package.
+6. Enables and starts the systemd service when available.
+7. Prints a local Plex Web setup URL.
+
+## Requirements
+
+- A Debian-based system with `apt`
+- Internet access
+- Root access or `sudo`
 
 ## Usage
 
-```
+```bash
 chmod +x install_plex.sh
 ./install_plex.sh
 ```
 
-After installation, open a browser and finish setup at:
+After installation, open the URL printed by the script or browse locally to:
 
+```text
+http://127.0.0.1:32400/web
 ```
-http://<Your-Server-IP>:32400/web
+
+## Media permissions
+
+Plex Media Server runs as the `plex` service account by default. The account needs read permission on media files and read/execute permission on every parent directory in the path. Do not solve permission problems by making an entire media tree world-writable.
+
+## Updates
+
+Once the repository is configured, update Plex with the normal package workflow:
+
+```bash
+sudo apt update
+sudo apt upgrade
 ```
 
-## Notes
-
-- The script always installs the latest **public** release. Plex Pass beta builds require a Plex Pass token and are not handled by this script.
-- Re-running the script upgrades an existing installation to the latest version.
-
-## Disclaimer
-
-This script is provided "as is", without warranty of any kind. Use it at your own risk.
+This installs public releases from the Plex repository. Plex Pass beta-channel selection is outside this script's scope.

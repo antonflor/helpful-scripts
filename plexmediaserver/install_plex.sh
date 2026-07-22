@@ -1,38 +1,75 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-set -o pipefail
+trap 'echo "Plex Media Server installation failed near line $LINENO." >&2' ERR
 
-# Update and install necessary packages
-sudo apt-get update
-sudo apt-get install -y curl jq
-
-# Fetch the latest Plex Media Server URL for Debian
-echo "Looking up the latest Plex Media Server release..."
-PLEX_JSON=$(curl -fsSL https://plex.tv/api/downloads/5.json)
-PLEX_URL=$(echo "$PLEX_JSON" | jq -r '.computer.Linux.releases[] | select(.build=="linux-x86_64") | select(.distro=="debian") | .url')
-
-if [ -z "$PLEX_URL" ] || [ "$PLEX_URL" = "null" ]; then
-    echo "Error: could not determine the Plex download URL." 1>&2
+if [[ ! -r /etc/os-release ]]; then
+    echo "/etc/os-release is unavailable; cannot identify the distribution." >&2
     exit 1
 fi
 
-# Download the latest Plex Media Server package
-DEB_FILE=$(mktemp /tmp/plexmediaserver.XXXXXX.deb)
-echo "Downloading Plex Media Server..."
-curl -fSL "$PLEX_URL" --output "$DEB_FILE"
+# shellcheck disable=SC1091
+. /etc/os-release
+if [[ "${ID:-}" != debian && "${ID:-}" != ubuntu && " ${ID_LIKE:-} " != *" debian "* ]]; then
+    echo "Unsupported distribution: ${PRETTY_NAME:-${ID:-unknown}}" >&2
+    echo "This installer supports Debian-based systems with apt." >&2
+    exit 1
+fi
 
-# Install Plex Media Server
-echo "Installing Plex Media Server..."
-sudo dpkg -i "$DEB_FILE" || sudo apt-get -f install -y
-rm -f "$DEB_FILE"
+for command in apt-get install gpg; do
+    if [[ "$command" == gpg ]]; then
+        continue
+    fi
+    command -v "$command" >/dev/null 2>&1 || {
+        echo "Required command not found: $command" >&2
+        exit 1
+    }
+done
 
-# Enable and start Plex Media Server
-echo "Enabling and starting Plex Media Server..."
-sudo systemctl enable plexmediaserver
-sudo systemctl start plexmediaserver
+if ((EUID == 0)); then
+    sudo_cmd=()
+else
+    command -v sudo >/dev/null 2>&1 || {
+        echo "sudo is required when the script is not run as root." >&2
+        exit 1
+    }
+    sudo_cmd=(sudo)
+fi
 
-# Check the status of Plex Media Server
-echo "Checking the status of Plex Media Server..."
-sudo systemctl status plexmediaserver --no-pager
+key_source=$(mktemp)
+key_binary=$(mktemp)
+trap 'rm -f "$key_source" "$key_binary"' EXIT
 
-echo "Installation complete. You can access Plex at http://<Your-Server-IP>:32400/web"
+echo "Installing repository prerequisites..."
+"${sudo_cmd[@]}" apt-get update
+"${sudo_cmd[@]}" apt-get install -y ca-certificates curl gnupg
+
+echo "Installing Plex's v2 repository signing key..."
+curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.v2.key -o "$key_source"
+gpg --batch --yes --dearmor --output "$key_binary" "$key_source"
+"${sudo_cmd[@]}" install -m 0755 -d /etc/apt/keyrings
+"${sudo_cmd[@]}" install -m 0644 "$key_binary" /etc/apt/keyrings/plexmediaserver.v2.gpg
+
+echo "Removing superseded Plex apt source files..."
+"${sudo_cmd[@]}" find /etc/apt/sources.list.d -maxdepth 1 -type f \
+    \( -name 'plex*.list' -o -name 'plex*.sources' \) -delete
+
+echo "Configuring Plex's official apt repository..."
+echo "deb [signed-by=/etc/apt/keyrings/plexmediaserver.v2.gpg] https://repo.plex.tv/deb/ public main" |
+    "${sudo_cmd[@]}" tee /etc/apt/sources.list.d/plex.list >/dev/null
+
+"${sudo_cmd[@]}" apt-get update
+"${sudo_cmd[@]}" apt-get install -y plexmediaserver
+
+if command -v systemctl >/dev/null 2>&1; then
+    echo "Enabling and starting Plex Media Server..."
+    "${sudo_cmd[@]}" systemctl enable --now plexmediaserver
+    "${sudo_cmd[@]}" systemctl is-active --quiet plexmediaserver
+fi
+
+server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+server_ip=${server_ip:-127.0.0.1}
+
+echo "Plex Media Server installation completed successfully."
+echo "Open http://${server_ip}:32400/web to finish setup."
+echo "The plex service account must have read and execute access to your media paths."
